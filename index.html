@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#065f46" />
+  <meta name="description" content="ZimHeritage Connect - Offline-first community and cultural tourism platform for Zimbabwe." />
+  <title>ZimHeritage Connect | Rural & Cultural Tourism PWA</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet.js CSS & JS (Interactive Offline-Capable Maps) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- QRCode.js CDN (Client-side Offline Ticket Generation) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    /* Custom scrollbar and map z-index control */
+    #trail-map { height: 280px; z-index: 10; }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 font-sans antialiased flex flex-col min-h-screen">
+
+  <!-- Offline Status Banner (Dynamically toggled via JS) -->
+  <div id="offline-banner" role="alert" class="hidden bg-amber-600 text-white text-center text-sm py-2 px-4 font-medium">
+    You are currently offline. Cached trail maps, audio notes, and QR passes remain active.
+  </div>
+
+  <!-- Semantic Header & Navigation -->
+  <header class="bg-emerald-900 text-white shadow-md sticky top-0 z-30">
+    <nav class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4" aria-label="Main Navigation">
+      <div class="flex items-center space-x-2">
+        <span class="bg-amber-500 text-emerald-950 font-extrabold px-2.5 py-1 rounded text-lg">ZH</span>
+        <div>
+          <a href="#" class="text-xl font-bold tracking-tight">ZimHeritage Connect</a>
+          <p class="text-xs text-emerald-200">Community-Led Cultural Trails</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <!-- Dual Currency Switcher (USD / ZiG) -->
+        <div class="flex items-center bg-emerald-800 rounded-lg p-1 border border-emerald-700" role="group" aria-label="Currency Selector">
+          <button id="btn-usd" onclick="setCurrency('USD')" class="px-3 py-1 rounded text-xs font-bold bg-amber-500 text-emerald-950 transition">USD ($)</button>
+          <button id="btn-zig" onclick="setCurrency('ZiG')" class="px-3 py-1 rounded text-xs font-bold text-emerald-100 hover:text-white transition">ZiG</button>
+        </div>
+
+        <button onclick="openTicketModal()" class="relative bg-emerald-700 hover:bg-emerald-600 px-3.5 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+          <span>My Offline Pass</span>
+          <span id="ticket-badge" class="hidden bg-amber-400 text-emerald-950 text-xs font-bold px-1.5 py-0.5 rounded-full">1</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-6xl mx-auto px-4 py-8 w-full">
+
+    <!-- Hero & Search Filter Section -->
+    <section class="bg-emerald-950 text-white rounded-2xl p-6 md:p-10 mb-8 shadow-lg relative overflow-hidden">
+      <div class="max-w-2xl">
+        <span class="inline-block bg-emerald-800 text-amber-300 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+          100% Direct to Community Guides • Works Offline
+        </span>
+        <h1 class="text-3xl md:text-4xl font-extrabold leading-tight mb-3">
+          Discover Zimbabwe’s Hidden Heritage Beyond the Main Roads
+        </h1>
+        <p class="text-emerald-200 text-sm md:text-base mb-6">
+          Book verified local historians, rock-art custodians, and rural trails. Pay in USD or ZiG with instant SMS confirmation to rural guides.
+        </p>
+
+        <!-- Province Filter -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <label for="province-filter" class="sr-only">Filter by Province</label>
+          <select id="province-filter" onchange="filterExperiences()" class="bg-white text-stone-900 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 flex-grow">
+            <option value="ALL">All Provinces (Zimbabwe)</option>
+            <option value="Mashonaland East">Mashonaland East (Domboshava)</option>
+            <option value="Manicaland">Manicaland (Chimanimani & Bvumba)</option>
+            <option value="Matabeleland South">Matabeleland South (Matobo Hills)</option>
+            <option value="Masvingo">Masvingo (Rural Great Zimbabwe)</option>
+          </select>
+          <button onclick="filterExperiences()" class="bg-amber-500 hover:bg-amber-400 text-emerald-950 font-bold px-6 py-3 rounded-lg text-sm transition">
+            Explore Trails
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Experiences Grid -->
+    <section aria-labelledby="experiences-heading">
+      <div class="flex justify-between items-center mb-6">
+        <h2 id="experiences-heading" class="text-2xl font-bold text-stone-800">Verified Community Experiences</h2>
+        <span id="rate-indicator" class="text-xs text-stone-500 font-medium">Exchange Rate: 1 USD = 26.50 ZiG</span>
+      </div>
+
+      <div id="experiences-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Populated dynamically via app.js -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Booking & Offline Trail Modal -->
+  <div id="booking-modal" class="hidden fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative my-8">
+      <button onclick="closeModal('booking-modal')" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 text-2xl font-bold" aria-label="Close modal">&times;</button>
+
+      <span id="modal-province" class="text-xs font-bold uppercase tracking-wider text-emerald-700"></span>
+      <h3 id="modal-title" class="text-2xl font-bold text-stone-900 mt-1"></h3>
+      <p id="modal-guide" class="text-sm text-stone-600 mb-4"></p>
+
+      <!-- Interactive Leaflet Trail Map -->
+      <div class="mb-4">
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="text-xs font-bold text-stone-700">GPS Trail Route & Waypoints</span>
+          <button id="cache-map-btn" onclick="cacheTrailOffline()" class="text-xs bg-stone-200 hover:bg-emerald-100 text-emerald-900 font-semibold px-2.5 py-1 rounded transition">
+            Save Trail Offline (1.8 MB)
+          </button>
+        </div>
+        <div id="trail-map" class="rounded-xl border border-stone-300"></div>
+      </div>
+
+      <!-- Escrow & Levy Breakdown -->
+      <div class="bg-stone-100 rounded-xl p-4 mb-4 text-sm">
+        <div class="flex justify-between mb-1">
+          <span>Guide Base Fee (<span id="modal-guests-label">1 Guest</span>)</span>
+          <span id="modal-base-price" class="font-semibold"></span>
+        </div>
+        <div class="flex justify-between text-emerald-800 mb-2">
+          <span>Community Conservation Levy (10%)</span>
+          <span id="modal-levy-price" class="font-semibold"></span>
+        </div>
+        <div class="border-t border-stone-300 pt-2 flex justify-between text-base font-bold">
+          <span>Total Escrow Amount</span>
+          <span id="modal-total-price" class="text-emerald-900"></span>
+        </div>
+      </div>
+
+      <!-- Payment Method & SMS Trigger -->
+      <form onsubmit="processBooking(event)" class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="tourist-name" class="block text-xs font-bold text-stone-700 mb-1">Full Name</label>
+            <input type="text" id="tourist-name" required placeholder="e.g., Tendai Moyo" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label for="payment-gateway" class="block text-xs font-bold text-stone-700 mb-1">Payment Method</label>
+            <select id="payment-gateway" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+              <option value="Paynow (EcoCash / InnBucks)">Paynow Zimbabwe (EcoCash / InnBucks)</option>
+              <option value="Stripe (Visa / Mastercard)">Stripe International (Visa / Mastercard)</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-800 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-sm transition shadow">
+          Confirm Booking & Dispatch SMS to Guide
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Offline QR Digital Passport Modal -->
+  <div id="ticket-modal" class="hidden fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl relative">
+      <button onclick="closeModal('ticket-modal')" class="absolute top-4 right-4 text-stone-400 hover:text-stone-700 text-2xl font-bold">&times;</button>
+      <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">OFFLINE ESCROW PASS</span>
+      <h3 class="text-xl font-bold mt-2" id="pass-title">No Active Booking</h3>
+      <p class="text-xs text-stone-500 mt-1 mb-4" id="pass-meta">Book a trail to generate an offline QR verification pass.</p>
+
+      <!-- QR Code Container -->
+      <div id="qrcode-container" class="flex justify-center my-4 p-4 bg-stone-50 rounded-xl border border-dashed border-stone-300"></div>
+
+      <p id="sms-log" class="text-xs bg-amber-50 text-amber-900 p-2.5 rounded-lg border border-amber-200 hidden"></p>
+    </div>
+  </div>
+
+  <!-- Semantic Footer -->
+  <footer class="bg-stone-900 text-stone-400 text-xs py-6 mt-12">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p>&copy; 2026 ZimHeritage Connect. Decentralizing Tourism Revenue Across Zimbabwe.</p>
+      <p>PWA Offline Engine Active • WCAG 2.1 AA Compliant</p>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
